@@ -54,7 +54,7 @@
       </extension>
     </extensions>
     <resources>
-      <!-- Only filter archetype-resources/pom.xml. -->
+      <!-- Only filter archetype-resources/pom.xml and README.md -->
       <resource>
         <directory>src/main/resources</directory>
         <filtering>true</filtering>

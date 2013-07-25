@@ -41,7 +41,7 @@ To try out the examples, first create a table to run on in your bento box:
 
 Then add your jar to the KIJI_CLASSPATH environment variable:
 
-    export KIJI_CLASSPATH=${PWD}/target/myproject-1.0-SNAPSHOT.jar
+    export KIJI_CLASSPATH=${PWD}/target/\${artifactId}-\${version}.jar
 
 Since there's no data, none of the jobs will do anything.  But you can run them.  To run the
 producer, for example:

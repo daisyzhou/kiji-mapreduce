@@ -41,12 +41,12 @@ import org.kiji.schema.KijiRowData;
 import org.kiji.schema.NoSuchColumnException;
 
 /**
- * This producer copies data from the column "family:qualifier" to the column
- * "family:outputqualifier" without modification, assuming both are encoded as bytes.
+ * This producer copies data from the column "user:info" to the column
+ * "user:outputqualifier" without modification, assuming both are encoded as bytes.
  */
 public class ExampleProducer extends KijiProducer {
-  private KijiColumnName mInputColumn = new KijiColumnName("family:qualifier");
-  private KijiColumnName mOutputColumn = new KijiColumnName("family:outputqualifier");
+  private KijiColumnName mInputColumn = new KijiColumnName("user:info");
+  private KijiColumnName mOutputColumn = new KijiColumnName("user:outputqualifier");
   private Schema schema = Schema.create(Schema.Type.BYTES);
 
   /** {@inheritDoc} */

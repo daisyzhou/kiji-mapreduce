@@ -22,12 +22,13 @@ package org.kiji.mapreduce.platform;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Comparator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Longs;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.mapreduce.hadoopbackport.TotalOrderPartitioner;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
@@ -41,16 +42,27 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.hadoop.mapreduce.lib.map.WrappedMapper;
+import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
 import org.apache.hadoop.mapreduce.task.MapContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 
 import org.kiji.annotations.ApiAudience;
 
 /**
- * CDH4-backed implementation of the KijiMRPlatformBridge API.
+ * Hadoop 2 and HBase 0.96 implementation of the KijiMRPlatformBridge API.
  */
 @ApiAudience.Private
-public final class CDH4MR1KijiMRBridge extends KijiMRPlatformBridge {
+public final class Hadoop2HBase96xKijiMRBridge extends KijiMRPlatformBridge {
+  /** KVComparator used in #compareKeyValues. */
+  private final KeyValue.KVComparator mKVComparator;
+
+  /**
+   * No-arg constructor.  Will be instantiated via reflection.
+   */
+  Hadoop2HBase96xKijiMRBridge() {
+    mKVComparator = new KeyValue.KVComparator();
+  }
+
   /** {@inheritDoc} */
   @Override
   public TaskAttemptContext newTaskAttemptContext(Configuration conf, TaskAttemptID id) {
@@ -94,7 +106,7 @@ public final class CDH4MR1KijiMRBridge extends KijiMRPlatformBridge {
   /** {@inheritDoc} */
   @Override
   public void setUserClassesTakesPrecedence(Job job, boolean value) {
-    // We can do this directly in CDH4.
+    // We can do this directly in CDH5.
     job.setUserClassesTakesPrecedence(value);
   }
 
@@ -132,34 +144,39 @@ public final class CDH4MR1KijiMRBridge extends KijiMRPlatformBridge {
       int roffset,
       int rlength
   ) {
-    return KeyValue.KEY_COMPARATOR.compare(left, loffset, llength, right, roffset, rlength);
+    return KeyValue.COMPARATOR.compareFlatKey(left, loffset, llength, right, roffset, rlength);
   }
 
-  /** {@inheritDoc} */
   @Override
-  public int compareKeyValues(KeyValue left, KeyValue right) {
-    return KeyValue.COMPARATOR.compare(left, right);
+  @edu.umd.cs.findbugs.annotations.SuppressWarnings(
+      value = "RV_NEGATING_RESULT_OF_COMPARETO",
+      justification =  "Copied directly from HBase source.")
+  public int compareKeyValues(final KeyValue left, final KeyValue right) {
+    // The body of this method is copied from KVComparator.compare in the file KeyValue.java lines
+    // 1535-1541, from the CDH HBase source version 0.94.6-cdh4.3.0.
+
+    // CSOFF: NeedBracesCheck
+    // Checkstyle off because this was copied directly from HBase source.
+    int ret = mKVComparator.compare(left.getBuffer(),
+        left.getOffset() + KeyValue.ROW_OFFSET, left.getKeyLength(),
+        right.getBuffer(), right.getOffset() + KeyValue.ROW_OFFSET,
+        right.getKeyLength());
+    if (ret != 0) return ret;
+    // Negate this comparison so later edits show up first
+    return -Longs.compare(left.getMemstoreTS(), right.getMemstoreTS());
+    // CSON: NeedBracesCheck
   }
 
-  /** {@inheritDoc} */
-  @Override
   public void writeKeyValue(KeyValue keyValue, DataOutput dataOutput) throws IOException {
-    keyValue.write(dataOutput);
+    KeyValue.write(keyValue, dataOutput);
   }
 
   /** {@inheritDoc} */
   @Override
   public KeyValue readKeyValue(DataInput dataInput) throws IOException {
-    // This line is money.
-    // It works around the fact that KeyValue maintains cached state by
-    // just creating a fresh one before reading Writable-serialized data.
-    KeyValue keyValue = new KeyValue();
-
-    keyValue.readFields(dataInput);
-    return keyValue;
+    return KeyValue.create(dataInput);
   }
 
-  /** {@inheritDoc} */
   @Override
   public void setTotalOrderPartitionerClass(Job job) {
     job.setPartitionerClass(TotalOrderPartitioner.class);
